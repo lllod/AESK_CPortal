@@ -11,10 +11,14 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
+from django_auth_ldap.config import LDAPSearch, LDAPSearchUnion
+from dotenv import load_dotenv
+import ldap
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -27,7 +31,6 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -37,6 +40,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'drf_spectacular',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
+    'apps.authentication',
 ]
 
 MIDDLEWARE = [
@@ -68,7 +76,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
@@ -78,7 +85,6 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -98,7 +104,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
@@ -110,7 +115,6 @@ USE_I18N = True
 
 USE_TZ = True
 
-
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
@@ -120,3 +124,75 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'def_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'AESK Corporate Portal',
+    'VERSION': '0.0.1',
+    'SERVER_INCLUDE_SCHEMA': False,
+}
+
+AUTH_USER_MODEL = 'auth.User'
+
+SIMPLE_JWT = {
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+}
+
+AUTHENTICATION_BACKENDS = (
+    'auth.backends.LDAPJWTBackend',
+    'django_auth_ldap.backend.LDAPBackend',
+    'django.contrib.auth.backends.ModelBackend',
+)
+
+# Параметры подключения к серверу
+AUTH_LDAP_SERVER_URI = os.getenv('AUTH_LDAP_SERVER_URI')
+AUTH_LDAP_BIND_DN = os.getenv('AUTH_LDAP_BIND_DN')
+AUTH_LDAP_BIND_PASSWORD = os.getenv('AUTH_LDAP_BIND_PASSWORD')
+
+# параметры поиска пользователей
+AUTH_LDAP_USER_SEARCH = LDAPSearch(
+    LDAPSearch(
+        'OU=Пользователи Бакинская,DC=astsbyt,DC=ru',
+        ldap.SCOPE_SUBTREE,
+        '(sAMAccountName=%(user)s)',
+    ),
+    LDAPSearch(
+        'OU=Районные отделы сбыта,DC=astsbyt,DC=ru',
+        ldap.SCOPE_SUBTREE,
+        '(sAMAccountName=%(user)s)',
+    ),
+)
+AUTH_LDAP_USER_ATTR_MAP = {
+    'first_name': 'givenName',
+    'last_name': 'sn',
+    'email': 'mail',
+}
+
+# Параметры поиска групп
+AUTH_LDAP_GROUP_SEARCH = LDAPSearch(
+    LDAPSearch(
+        'OU=Районные отделы сбыта,DC=astsbyt,DC=ru',
+        ldap.SCOPE_SUBTREE,
+        '(objectClass=group)',
+    ),
+    LDAPSearch(
+        'OU=Пользователи Бакинская,DC=astsbyt,DC=ru',
+        ldap.SCOPE_SUBTREE,
+        '(objectClass=group)',
+    ),
+)
+AUTH_LDAP_GROUP_TYPE = ActiveDirectoryGroupType()
+AUTH_LDAP_MIRROR_GROUPS = True
+AUTH_LDAP_USER_FLAGS_BY_GROUP = {
+    'is_staff': 'CN=CPortal_staff,OU=Пользователи Бакинская,DC=astsbyt,DC=ru',
+    'is_superuser': 'CN=CPortal_superuser,OU=Пользователи Бакинская,DC=astsbyt,DC=ru'
+}
