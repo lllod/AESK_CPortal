@@ -12,13 +12,19 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
-from django_auth_ldap.config import LDAPSearch, LDAPSearchUnion
+from django_auth_ldap.config import LDAPSearch, LDAPSearchUnion, ActiveDirectoryGroupType
 from dotenv import load_dotenv
+from ldap.ldapobject import LDAPObject
 import ldap
 import os
+import logging
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+
+LDAPObject.bytes_mode = False
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -29,7 +35,13 @@ SECRET_KEY = 'django-insecure-=85qomwlmvgb^2+nv#!ta4$cltn6whe-0x&&_nkr8v2ilm&_bh
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '172.16.5.14',
+    '172.26.224.148',
+    '*',
+]
 
 # Application definition
 
@@ -55,6 +67,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.authentication.middleware.LDAPUserRefreshMiddleware',
 ]
 
 ROOT_URLCONF = 'core.urls'
@@ -129,7 +142,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
-    'DEFAULT_SCHEMA_CLASS': 'def_spectacular.openapi.AutoSchema',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 SPECTACULAR_SETTINGS = {
@@ -145,30 +158,36 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ACCESS_TOKEN_CLASS': 'apps.authentication.tokens.CustomAccessToken',
 }
 
 AUTHENTICATION_BACKENDS = (
-    'auth.backends.LDAPJWTBackend',
     'django_auth_ldap.backend.LDAPBackend',
     'django.contrib.auth.backends.ModelBackend',
+    'apps.authentication.backends.LDAPJWTBackend',
 )
 
 # Параметры подключения к серверу
 AUTH_LDAP_SERVER_URI = os.getenv('AUTH_LDAP_SERVER_URI')
 AUTH_LDAP_BIND_DN = os.getenv('AUTH_LDAP_BIND_DN')
 AUTH_LDAP_BIND_PASSWORD = os.getenv('AUTH_LDAP_BIND_PASSWORD')
+# os.getenv('AUTH_LDAP_BIND_DN')
+
+AUTH_LDAP_CONNECTION_OPTIONS = {
+    ldap.OPT_REFERRALS: 0
+}
 
 # параметры поиска пользователей
-AUTH_LDAP_USER_SEARCH = LDAPSearch(
+AUTH_LDAP_USER_SEARCH = LDAPSearchUnion(
     LDAPSearch(
-        'OU=Пользователи Бакинская,DC=astsbyt,DC=ru',
+        "OU=Пользователи Бакинская,DC=astsbyt,DC=ru",
         ldap.SCOPE_SUBTREE,
-        '(sAMAccountName=%(user)s)',
+        "(sAMAccountName=%(user)s)",
     ),
     LDAPSearch(
-        'OU=Районные отделы сбыта,DC=astsbyt,DC=ru',
+        "OU=Районные отделы сбыта,DC=astsbyt,DC=ru",
         ldap.SCOPE_SUBTREE,
-        '(sAMAccountName=%(user)s)',
+        "(sAMAccountName=%(user)s)",
     ),
 )
 AUTH_LDAP_USER_ATTR_MAP = {
@@ -178,7 +197,7 @@ AUTH_LDAP_USER_ATTR_MAP = {
 }
 
 # Параметры поиска групп
-AUTH_LDAP_GROUP_SEARCH = LDAPSearch(
+AUTH_LDAP_GROUP_SEARCH = LDAPSearchUnion(
     LDAPSearch(
         'OU=Районные отделы сбыта,DC=astsbyt,DC=ru',
         ldap.SCOPE_SUBTREE,
@@ -189,10 +208,46 @@ AUTH_LDAP_GROUP_SEARCH = LDAPSearch(
         ldap.SCOPE_SUBTREE,
         '(objectClass=group)',
     ),
+    LDAPSearch(
+        'DC=astsbyt,DC=ru',
+        ldap.SCOPE_SUBTREE,
+        '(objectClass=group)',
+    ),
 )
 AUTH_LDAP_GROUP_TYPE = ActiveDirectoryGroupType()
 AUTH_LDAP_MIRROR_GROUPS = True
 AUTH_LDAP_USER_FLAGS_BY_GROUP = {
-    'is_staff': 'CN=CPortal_staff,OU=Пользователи Бакинская,DC=astsbyt,DC=ru',
-    'is_superuser': 'CN=CPortal_superuser,OU=Пользователи Бакинская,DC=astsbyt,DC=ru'
+    'is_staff': 'CN=CPortal_staff,DC=astsbyt,DC=ru',
+    'is_superuser': 'CN=CPortal_superuser,DC=astsbyt,DC=ru'
+}
+
+print("\n" + "="*50)
+print("LDAP CONFIGURATION:")
+print(f"SERVER_URI: {AUTH_LDAP_SERVER_URI}")
+print(f"BIND_DN: {AUTH_LDAP_BIND_DN}")
+print(f"USER_SEARCH: {[str(s) for s in AUTH_LDAP_USER_SEARCH.searches]}")
+print("="*50 + "\n")
+
+LOGGING = {
+    'version': 1,
+    # 'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django_auth_ldap': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+        },
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'apps.authentication.middleware': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+        },
+    },
 }
