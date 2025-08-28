@@ -56,7 +56,9 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
+    'apps.common',
     'apps.authentication',
+    'apps.companies',
 ]
 
 MIDDLEWARE = [
@@ -147,7 +149,7 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'AESK Corporate Portal',
-    'VERSION': '0.0.1',
+    'VERSION': '0.0.2',
     'SERVER_INCLUDE_SCHEMA': False,
 }
 
@@ -221,12 +223,12 @@ AUTH_LDAP_USER_FLAGS_BY_GROUP = {
     'is_superuser': 'CN=CPortal_superuser,DC=astsbyt,DC=ru'
 }
 
-print("\n" + "="*50)
-print("LDAP CONFIGURATION:")
-print(f"SERVER_URI: {AUTH_LDAP_SERVER_URI}")
-print(f"BIND_DN: {AUTH_LDAP_BIND_DN}")
-print(f"USER_SEARCH: {[str(s) for s in AUTH_LDAP_USER_SEARCH.searches]}")
-print("="*50 + "\n")
+# print("\n" + "="*50)
+# print("LDAP CONFIGURATION:")
+# print(f"SERVER_URI: {AUTH_LDAP_SERVER_URI}")
+# print(f"BIND_DN: {AUTH_LDAP_BIND_DN}")
+# print(f"USER_SEARCH: {[str(s) for s in AUTH_LDAP_USER_SEARCH.searches]}")
+# print("="*50 + "\n")
 
 LOGGING = {
     'version': 1,
