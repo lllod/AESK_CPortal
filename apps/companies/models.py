@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+import django.utils.timezone
+import decimal
 
 from apps.common.models import BaseModel
 
@@ -34,7 +36,7 @@ class BusinessPlanCategory(models.Model):
 
 class Counterparties(BaseModel):
     """
-    Основная модель приложения - модель для контрагентов.
+    Основная модель приложения - модель для контрагентов (основные данные из ОФ-9 (СТЕК)) и DaData).
 
     Атрибуты:
         inn (str): ИНН юридического лица либо индивидуального предпринимателя.
@@ -48,6 +50,16 @@ class Counterparties(BaseModel):
         category (Category): категория, к которой отнесен контрагент.
         business_plan_category (BusinessPlanCategory): категория по бизнес-плану, к которой отнесен контрагент.
         counterparty_contact (CounterpartyContact): контактное лицо контрагента.
+        kpp (str): КПП юридического лица.
+        ogrn (str): ОГРН контрагента.
+        ogrn_date (DateTimeField): дата выдачи ОГРН контрагенту.
+        name_full_with_opf (str): полное наименование контрагента.
+        okved (str): код ОКВЭД контрагента.
+        opf_full (str): полное название организационно-правовой формы контрагента.
+        opf_short (str): краткое название организационно-правовой формы контрагента.
+        counterparties (Counterparties): контрагент, по которому получены данные из сервиса DaData.
+        registration_date (DateTimeField): дата регистрации контрагента.
+        liquidation_date (DateTimeField): дата ликвидации контрагента.
     """
 
     TYPE_CHOICES = [
@@ -65,14 +77,23 @@ class Counterparties(BaseModel):
     name_from_dadata = models.CharField(max_length=512, blank=True, default='')
     address_from_excel = models.CharField(max_length=1024)
     address_from_dadata = models.CharField(max_length=1024, blank=True, default='')
-    counterparties_type = models.CharField(max_length=2, choices=TYPE_CHOICES, blank=True, default='')
-    branch_type = models.CharField(max_length=20, choices=BRANCH_CHOICES, blank=True, default='')
+    counterparties_type = models.TextChoices(max_length=10, choices=TYPE_CHOICES, blank=True, default='')
+    branch_type = models.TextChoices(max_length=20, choices=BRANCH_CHOICES, blank=True, default='')
     parent = models.ForeignKey('self', blank=True, null=True, on_delete=models.SET_NULL, related_name='branches')
     category = models.ForeignKey(Category, blank=True, null=True, on_delete=models.CASCADE, related_name='categories')
     business_plan_category = models.ForeignKey(BusinessPlanCategory, blank=True, null=True, on_delete=models.CASCADE,
                                                related_name='business_plan_categories')
-    counterparty_contact = models.ForeignKey(CounterpartyContact, blank=True, null=True, on_delete=models.CASCADE,
+    counterparty_contact = models.ForeignKey('CounterpartyContact', blank=True, null=True, on_delete=models.CASCADE,
                                              related_name='contact')
+    kpp = models.CharField(max_length=9, blank=True, null=True)
+    ogrn = models.CharField(max_length=13)
+    ogrn_date = models.DateTimeField()
+    name_full_with_opf = models.CharField(max_length=512)
+    okved = models.CharField(max_length=8)
+    opf_full = models.CharField(max_length=64)
+    opf_short = models.CharField(max_length=8)
+    registration_date = models.DateTimeField()
+    liquidation_date = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         indexes = [
@@ -86,8 +107,6 @@ class CounterpartiesState(models.Model):
 
     Атрибуты:
         actuality_date (DateTimeField): дата последних изменений контрагента.
-        registration_date (DateTimeField): дата регистрации контрагента.
-        liquidation_date (DateTimeField): дата ликвидации контрагента.
         status (str): текущий статус контрагента.
         code (int): детальный статус контрагента из справочника DaData.
         counterparties (Counterparties): контрагент, к которому относится экземпляр модели.
@@ -102,9 +121,7 @@ class CounterpartiesState(models.Model):
     ]
 
     actuality_date = models.DateTimeField()
-    registration_date = models.DateTimeField()
-    liquidation_date = models.DateTimeField(blank=True, null=True)
-    status = models.CharField(max_length=37, choices=STATUS_CHOICES)
+    status = models.TextChoices(max_length=37, choices=STATUS_CHOICES)
     code = models.IntegerField(blank=True, null=True)
     counterparties = models.ForeignKey(Counterparties, related_name='states', on_delete=models.CASCADE)
 
@@ -125,7 +142,7 @@ class UploadLog(BaseModel):
         file (ExcelFiled): загруженный Excel-файл.
     """
 
-    uploaded_by = models.ForeignKey(get_user_model, on_delete=models.CASCADE)
+    uploaded_by = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
     file_name = models.CharField(max_length=255, default=f'of-9-file-{timezone.now()}.xlsx', blank=True, null=True)
     rows_processed = models.PositiveIntegerField(default=0)
     file = models.FileField(upload_to='uploads/%Y/%m')
@@ -159,30 +176,6 @@ class Contract(BaseModel):
         indexes = [
             models.Index(fields=['contract_number']),
         ]
-
-
-class DaDataRecord(models.Model):
-    """
-    Модель для данных контрагента из сервиса DaData.
-
-    Атрибуты:
-        kpp (str): КПП юридического лица.
-        ogrn (str): ОГРН контрагента.
-        ogrn_date (DateTimeField): дата выдачи ОГРН контрагенту.
-        name_full_with_opf (str): полное наименование контрагента.
-        okved (str): код ОКВЭД контрагента.
-        opf_full (str): полное название организационно-правовой формы контрагента.
-        opf_short (str): краткое название организационно-правовой формы контрагента.
-        counterparties (Counterparties): контрагент, по которому получены данные из сервиса DaData.
-    """
-    kpp = models.CharField(max_length=9, blank=True, null=True)
-    ogrn = models.CharField(max_length=13)
-    ogrn_date = models.DateTimeField()
-    name_full_with_opf = models.CharField(max_length=512)
-    okved = models.CharField(max_length=8)
-    opf_full = models.CharField(max_length=64)
-    opf_short = models.CharField(max_length=8)
-    counterparties = models.OneToOneField(Counterparties, on_delete=models.CASCADE, related_name='dadata')
 
 
 class DebtCredit(models.Model):
