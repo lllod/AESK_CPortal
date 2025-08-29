@@ -1,9 +1,9 @@
 from django.db import models
 from django.contrib.auth import get_user_model
-import django.utils.timezone
-import decimal
+from decimal import Decimal
 
 from apps.common.models import BaseModel
+from apps.common.utils import upload_log_file_name_of_nine
 
 
 class Category(models.Model):
@@ -19,6 +19,9 @@ class Category(models.Model):
         verbose_name = 'Категория'
         verbose_name_plural = 'Категории'
 
+    def __str__(self):
+        return self.name
+
 
 class BusinessPlanCategory(models.Model):
     """
@@ -32,6 +35,9 @@ class BusinessPlanCategory(models.Model):
     class Meta:
         verbose_name = 'Категория по бизнес-плану'
         verbose_name_plural = 'Категории по бизнес-плану'
+
+    def __str__(self):
+        return self.name
 
 
 class Counterparties(BaseModel):
@@ -62,23 +68,22 @@ class Counterparties(BaseModel):
         liquidation_date (DateTimeField): дата ликвидации контрагента.
     """
 
-    TYPE_CHOICES = [
-        ('LEGAL', 'ЮЛ'),
-        ('INDIVIDUAL', 'ИП'),
-    ]
+    class CounterpartyType(models.TextChoices):
+        LEGAL = 'LEGAL', 'ЮЛ'
+        INDIVIDUAL = 'INDIVIDUAL', 'ИП'
 
-    BRANCH_CHOICES = [
-        ('MAIN', 'Головная организация'),
-        ('BRANCH', 'Филиал'),
-    ]
+    class BranchType(models.TextChoices):
+        MAIN = 'MAIN', 'Головная организация'
+        BRANCH = 'BRANCH', 'Филиал'
+
 
     inn = models.CharField(max_length=12, db_index=True)
     name_from_excel = models.CharField(max_length=512)
     name_from_dadata = models.CharField(max_length=512, blank=True, default='')
     address_from_excel = models.CharField(max_length=1024)
     address_from_dadata = models.CharField(max_length=1024, blank=True, default='')
-    counterparties_type = models.TextChoices(max_length=10, choices=TYPE_CHOICES, blank=True, default='')
-    branch_type = models.TextChoices(max_length=20, choices=BRANCH_CHOICES, blank=True, default='')
+    counterparties_type = models.CharField(max_length=10, choices=CounterpartyType.choices, blank=True, default='')
+    branch_type = models.CharField(max_length=20, choices=BranchType.choices, blank=True, default='')
     parent = models.ForeignKey('self', blank=True, null=True, on_delete=models.SET_NULL, related_name='branches')
     category = models.ForeignKey(Category, blank=True, null=True, on_delete=models.CASCADE, related_name='categories')
     business_plan_category = models.ForeignKey(BusinessPlanCategory, blank=True, null=True, on_delete=models.CASCADE,
@@ -97,8 +102,11 @@ class Counterparties(BaseModel):
 
     class Meta:
         indexes = [
-            models.Index(fields=['inn', 'counterparties_type', 'branch_type']),
+            models.Index(fields=['inn', 'counterparties_type', 'branch_type', 'liquidation_date']),
         ]
+
+    def __str__(self):
+        return f'{self.name_from_excel} | {self.inn} | {self.address}'
 
 
 class CounterpartiesState(models.Model):
@@ -112,23 +120,25 @@ class CounterpartiesState(models.Model):
         counterparties (Counterparties): контрагент, к которому относится экземпляр модели.
     """
 
-    STATUS_CHOICES = [
-        ('ACTIVE', 'Действующая'),
-        ('LIQUIDATING', 'Ликвидируется'),
-        ('LIQUIDATED', 'Ликвидирована'),
-        ('BANKRUPT', 'Банкротство'),
-        ('REORGANIZING', 'В процессе присоединения к другому ЮЛ'),
-    ]
+    class Status(models.TextChoices):
+        ACTIVE = 'ACTIVE', 'Действующая'
+        LIQUIDATING = 'LIQUIDATING', 'Ликвидируется'
+        LIQUIDATED = 'LIQUIDATED', 'Ликвидирована'
+        BANKRUPT = 'BANKRUPT', 'Банкротство'
+        REORGANIZING = 'REORGANIZING', 'В процессе присоединения к другому ЮЛ'
 
     actuality_date = models.DateTimeField()
-    status = models.TextChoices(max_length=37, choices=STATUS_CHOICES)
+    status = models.CharField(max_length=37, choices=Status.choices, default=Status.ACTIVE)
     code = models.IntegerField(blank=True, null=True)
     counterparties = models.ForeignKey(Counterparties, related_name='states', on_delete=models.CASCADE)
 
     class Meta:
         indexes = [
-            models.Index(fields=['status', 'liquidation_date', 'actuality_date']),
+            models.Index(fields=['status', 'actuality_date']),
         ]
+
+    def __str__(self):
+        return f'{self.counterparties.name_from_excel} | {self.status}'
 
 
 class UploadLog(BaseModel):
@@ -142,8 +152,8 @@ class UploadLog(BaseModel):
         file (ExcelFiled): загруженный Excel-файл.
     """
 
-    uploaded_by = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
-    file_name = models.CharField(max_length=255, default=f'of-9-file-{timezone.now()}.xlsx', blank=True, null=True)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    file_name = models.CharField(max_length=255, default=upload_log_file_name_of_nine, blank=True, null=True)
     rows_processed = models.PositiveIntegerField(default=0)
     file = models.FileField(upload_to='uploads/%Y/%m')
 
@@ -151,6 +161,9 @@ class UploadLog(BaseModel):
         indexes = [
             models.Index(fields=['uploaded_by']),
         ]
+
+    def __str__(self):
+        return f'{self.user} - {self.file_name}'
 
 
 class Contract(BaseModel):
@@ -177,6 +190,9 @@ class Contract(BaseModel):
             models.Index(fields=['contract_number']),
         ]
 
+    def __str__(self):
+        return f'{self.counterparties.name_from_excel} - {self.contract_number}'
+
 
 class DebtCredit(models.Model):
     """
@@ -202,6 +218,9 @@ class DebtCredit(models.Model):
     date = models.DateField()
     contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='debts_and_credits')
 
+    def __str__(self):
+        return f'{self.counterparties.name_from_excel} - {self.contract_number}: {self.debt_total:.2f}'
+
 
 class CounterpartyContact(BaseModel):
     """
@@ -216,3 +235,6 @@ class CounterpartyContact(BaseModel):
     name = models.CharField(max_length=128)
     post = models.CharField(max_length=64, blank=True, default='')
     start_date = models.DateTimeField(blank=True, null=True)
+
+    def __str__(self):
+        return f'{self.counterparties.name_from_excel} - {self.name}'
