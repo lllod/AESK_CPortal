@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from decimal import Decimal
 
 from apps.common.models import BaseModel
@@ -50,6 +51,7 @@ class Counterparties(BaseModel):
         name_from_dadata (str): Наименование из DaData.
         address_from_excel (str): Адрес из ОФ-9 (СТЕК).
         address_from_dadata (str): Адрес из DaData.
+        district (str): район, в котором располагается контрагент.
         counterparties_type (str): Тип организации (ЮЛ либо ИП).
         branch_type (str): Тип подразделения (головная либо филиал).
         parent (UUIDField): Указание головной организации, если контрагент является филиалом, иначе Null.
@@ -82,6 +84,7 @@ class Counterparties(BaseModel):
     name_from_dadata = models.CharField(max_length=512, blank=True, default='')
     address_from_excel = models.CharField(max_length=1024)
     address_from_dadata = models.CharField(max_length=1024, blank=True, default='')
+    district = models.CharField(max_length=16, blank=True, default='')
     counterparties_type = models.CharField(max_length=10, choices=CounterpartyType.choices, blank=True, default='')
     branch_type = models.CharField(max_length=20, choices=BranchType.choices, blank=True, default='')
     parent = models.ForeignKey('self', blank=True, null=True, on_delete=models.SET_NULL, related_name='branches')
@@ -90,14 +93,14 @@ class Counterparties(BaseModel):
                                                related_name='business_plan_categories')
     counterparty_contact = models.ForeignKey('CounterpartyContact', blank=True, null=True, on_delete=models.CASCADE,
                                              related_name='contact')
-    kpp = models.CharField(max_length=9, blank=True, null=True)
-    ogrn = models.CharField(max_length=13)
-    ogrn_date = models.DateTimeField()
-    name_full_with_opf = models.CharField(max_length=512)
-    okved = models.CharField(max_length=8)
-    opf_full = models.CharField(max_length=64)
-    opf_short = models.CharField(max_length=8)
-    registration_date = models.DateTimeField()
+    kpp = models.CharField(max_length=9, blank=True, default='')
+    ogrn = models.CharField(max_length=13, blank=True, default='')
+    ogrn_date = models.DateTimeField(blank=True, null=True)
+    name_full_with_opf = models.CharField(max_length=512, blank=True, default='')
+    okved = models.CharField(max_length=8, blank=True, default='')
+    opf_full = models.CharField(max_length=64, blank=True, default='')
+    opf_short = models.CharField(max_length=8, blank=True, default='')
+    registration_date = models.DateTimeField(blank=True, null=True)
     liquidation_date = models.DateTimeField(blank=True, null=True)
 
     class Meta:
@@ -174,14 +177,12 @@ class Contract(BaseModel):
         contract_number (str): номер договора контрагента.
         contract_date (DateField): дата заключения договора.
         termination_date (DateField): дата расторжения договора.
-        district (str): район, в котором располагается контрагент.
         counterparties (Counterparties): контрагент, с которым заключен договор.
     """
 
     contract_number = models.CharField(max_length=32)
     contract_date = models.DateField(blank=True, null=True)
     termination_date = models.DateField(blank=True, null=True)
-    district = models.CharField(max_length=16, blank=True, null=True)
     counterparties = models.ForeignKey(Counterparties, related_name='contracts', on_delete=models.CASCADE)
 
     class Meta:

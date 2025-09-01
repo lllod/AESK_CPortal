@@ -1,3 +1,18 @@
-from django.shortcuts import render
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-# Create your views here.
+from apps.companies.serializers import ExcelUploadSerializer
+from apps.companies.services import process_excel_file
+
+
+class ExcelUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ExcelUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file_obj = serializer.validated_data['file']
+        rows = process_excel_file(file_obj, request.user)
+        return Response({'rows_processed': rows}, status=status.HTTP_201_CREATED)
