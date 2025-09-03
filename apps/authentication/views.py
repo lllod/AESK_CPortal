@@ -12,11 +12,18 @@ class LDAPLoginView(APIView):
 
         user = authenticate(request=request, username=username, password=password)
 
-        if user and hasattr(user, 'token'):
+        if user:
             refresh = RefreshToken.for_user(user)
+            access = refresh.access_token
             return Response(
-                {'access': user.token, 'refresh': str(refresh), 'username': user.username, 'email': user.email},
-                status=status.HTTP_200_OK)
+                {
+                    'access': str(access),
+                    'refresh': str(refresh),
+                    'username': user.username,
+                    'email': user.email,
+                },
+                status=status.HTTP_200_OK,
+            )
 
         return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 

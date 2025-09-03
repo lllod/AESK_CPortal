@@ -13,10 +13,10 @@ class LDAPJWTBackend(LDAPBackend):
             print(f"Authentication SUCCESS for: {username}")
             self.populate_user(user)   # Синхронизация данных из LDAP
             self.assign_roles(user)    # Назначение ролей на основе групп из LDAP
-            token = AccessToken.for_user(user)   # Генерация токена JWT
-            user.token = str(token)   # Сохранение токена во временном атрибуте
+            # user.token = str(AccessToken.for_user(user))   # Генерация токена JWT
+            return user
         print(f"Authentication FAILED for: {username}")
-        return user
+        return None
 
     def assign_roles(self, user):
         user.groups.clear()                 # Очистка всех групп пользователя

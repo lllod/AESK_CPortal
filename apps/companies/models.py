@@ -109,7 +109,7 @@ class Counterparties(BaseModel):
         ]
 
     def __str__(self):
-        return f'{self.name_from_excel} | {self.inn} | {self.address}'
+        return f'{self.name_from_excel} | {self.inn} | {self.address_from_excel}'
 
 
 class CounterpartiesState(models.Model):
@@ -166,7 +166,7 @@ class UploadLog(BaseModel):
         ]
 
     def __str__(self):
-        return f'{self.user} - {self.file_name}'
+        return f'{self.uploaded_by} - {self.file_name}'
 
 
 class Contract(BaseModel):
@@ -220,7 +220,7 @@ class DebtCredit(models.Model):
     contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='debts_and_credits')
 
     def __str__(self):
-        return f'{self.counterparties.name_from_excel} - {self.contract_number}: {self.debt_total:.2f}'
+        return f'{self.contract_number}: {self.debt_total:.2f}'
 
 
 class CounterpartyContact(BaseModel):
@@ -238,4 +238,4 @@ class CounterpartyContact(BaseModel):
     start_date = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
-        return f'{self.counterparties.name_from_excel} - {self.name}'
+        return f'{self.name}'
