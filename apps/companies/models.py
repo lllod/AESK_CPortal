@@ -79,8 +79,8 @@ class Counterparties(BaseModel):
         BRANCH = 'BRANCH', 'Филиал'
 
 
-    inn = models.CharField(max_length=12, db_index=True)
-    name_from_excel = models.CharField(max_length=512)
+    inn = models.CharField(max_length=12, db_index=True, default='')
+    name_from_excel = models.CharField(max_length=512, default='')
     name_from_dadata = models.CharField(max_length=512, blank=True, default='')
     address_from_excel = models.CharField(max_length=1024)
     address_from_dadata = models.CharField(max_length=1024, blank=True, default='')
@@ -106,6 +106,11 @@ class Counterparties(BaseModel):
     class Meta:
         indexes = [
             models.Index(fields=['inn', 'counterparties_type', 'branch_type', 'liquidation_date']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['inn', 'address_from_excel'], name='unique_inn_address_from_excel'
+            ),
         ]
 
     def __str__(self):
@@ -180,13 +185,12 @@ class Contract(BaseModel):
         counterparties (Counterparties): контрагент, с которым заключен договор.
     """
 
-    contract_number = models.CharField(max_length=32)
+    contract_number = models.CharField(max_length=32, unique=True)
     contract_date = models.DateField(blank=True, null=True)
     termination_date = models.DateField(blank=True, null=True)
     counterparties = models.ForeignKey(Counterparties, related_name='contracts', on_delete=models.CASCADE)
 
     class Meta:
-        unique_together = ('contract_number', 'counterparties')
         indexes = [
             models.Index(fields=['contract_number']),
         ]
@@ -217,10 +221,10 @@ class DebtCredit(models.Model):
     debt_origin_date = models.DateField(blank=True, null=True)
     credit_total = models.DecimalField(max_digits=21, decimal_places=5, default=Decimal('0.00'), blank=True, null=True)
     date = models.DateField()
-    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='debts_and_credits')
+    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='debt_credits')
 
     def __str__(self):
-        return f'{self.contract_number}: {self.debt_total:.2f}'
+        return f'{self.contract.contract_number}: {self.debt_total:.2f}'
 
 
 class CounterpartyContact(BaseModel):
